@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="LaptopStore.API/LaptopStore.API.csproj" />
+  <Project Path="LaptopStore.Repositories/LaptopStore.Repositories.csproj" />
+  <Project Path="LaptopStore.Services/LaptopStore.Services.csproj" />
+</Solution>
