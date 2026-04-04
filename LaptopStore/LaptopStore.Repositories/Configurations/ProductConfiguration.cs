@@ -23,15 +23,15 @@ namespace LaptopStore.Repositories.Configurations
 
             // [ProductConfiguration] : Thiết lập quan hệ 1-Nhiều với Category. 
             // Dùng Restrict để ngăn chặn việc xóa Danh mục nếu Danh mục đó đang có Sản phẩm.
-            builder.HasOne(x => x.Category)
-                   .WithMany() // Giả định Category không chứa ICollection<Product> để tránh lặp vòng, nếu có thì điền x => x.Products
-                   .HasForeignKey(x => x.CategoryId)
-                   .OnDelete(DeleteBehavior.Restrict);
-            // [ProductConfiguration] : Thiết lập quan hệ 1-Nhiều với Brand.
-            builder.HasOne(x => x.Brand)
-                   .WithMany()
-                   .HasForeignKey(x => x.BrandId)
-                   .OnDelete(DeleteBehavior.Restrict);
+            //builder.HasOne(x => x.Category)
+            //       .WithMany() // Giả định Category không chứa ICollection<Product> để tránh lặp vòng, nếu có thì điền x => x.Products
+            //       .HasForeignKey(x => x.CategoryId)
+            //       .OnDelete(DeleteBehavior.Restrict);
+            //// [ProductConfiguration] : Thiết lập quan hệ 1-Nhiều với Brand.
+            //builder.HasOne(x => x.Brand)
+            //       .WithMany()
+            //       .HasForeignKey(x => x.BrandId)
+            //       .OnDelete(DeleteBehavior.Restrict);
         }
     }
 }
