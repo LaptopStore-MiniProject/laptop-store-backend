@@ -24,9 +24,6 @@ TestResults/
 coverage/
 
 # Local config / secrets
-appsettings.Development.json
-appsettings.Local.json
-appsettings.json
 .env
 .env.*
 
