@@ -11,7 +11,9 @@ namespace LaptopStore.Repositories.Interfaces
             // Sắp xếp (option)
             Func<IQueryable<T>, IOrderedQueryable<T>>? orderBy = null,
             // Nối đến bảng khác (option)
-            string? includeProperties = null
+            string? includeProperties = null,
+            // Được sử dụng để snapshot dữ liệu và cập nhật dễ hơn
+            bool tracked = true
             );
 
         Task<T?> GetAsync(

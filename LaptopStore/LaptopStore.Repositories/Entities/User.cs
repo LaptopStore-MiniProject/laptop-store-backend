@@ -12,7 +12,7 @@ namespace LaptopStore.Repositories.Entities
         public string PasswordHash { get; set; } = string.Empty;
         public string? PhoneNumber { get; set; }
         public string? Address { get; set; }
-
+        public bool IsDeleted { get; set; } = false;
         // Khóa ngoại tới Role
         public Guid RoleId { get; set; }
         public Role Role { get; set; } = null!;

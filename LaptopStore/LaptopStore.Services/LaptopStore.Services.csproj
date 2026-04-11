@@ -14,5 +14,12 @@
   <ItemGroup>
     <ProjectReference Include="..\LaptopStore.Repositories\LaptopStore.Repositories.csproj" />
   </ItemGroup>
+	
+  <ItemGroup>
+    <Folder Include="DTOs\Auth\" />
+    <Folder Include="DTOs\Cart\" />
+    <Folder Include="DTOs\Order\" />
+    <Folder Include="DTOs\Product\" />
+  </ItemGroup>
 
 </Project>

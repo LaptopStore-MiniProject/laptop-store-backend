@@ -17,6 +17,9 @@ namespace LaptopStore.Repositories.Configurations
             builder.ToTable("Categories");
             builder.HasKey(x => x.Id);
             builder.Property(x => x.Name).IsRequired().HasMaxLength(100);
+            // [CategoryConfiguration] : Tự động lọc bỏ các danh mục đã bị xóa mềm trong MỌI câu truy vấn (GetAll, GetById...)
+            builder.HasQueryFilter(c => !c.IsDeleted);
+
         }
     }
 

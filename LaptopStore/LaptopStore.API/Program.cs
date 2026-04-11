@@ -1,5 +1,11 @@
 using LaptopStore.Repositories.Context;
+using LaptopStore.Repositories.Implements;
+using LaptopStore.Repositories.Interfaces;
+using LaptopStore.Services.Implements;
+using LaptopStore.Services.Interfaces;
+using LaptopStore.Services.Mappings;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace LaptopStore.API
 {
@@ -22,6 +28,14 @@ namespace LaptopStore.API
                     // [Program.cs] : Chỉ định rõ Assembly chứa Migrations là LaptopStore.Repositories
                     b => b.MigrationsAssembly("LaptopStore.Repositories")
                 ));
+
+            // [Program] : Đăng ký UnitOfWork để quản lý Transaction
+            builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+            // [Program] : Đăng ký các Services của nghiệp vụ (Business Logic)
+            builder.Services.AddScoped<ICategoryService, CategoryService>();
+
+            // [Program] : Đăng ký AutoMapper, tự động quét các Profile trong assembly của tầng Services
+            builder.Services.AddAutoMapper(typeof(AutoMapperProfile).Assembly);
 
             var app = builder.Build();
 

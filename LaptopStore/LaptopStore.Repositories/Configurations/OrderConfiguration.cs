@@ -22,7 +22,7 @@ namespace LaptopStore.Repositories.Configurations
 
             // [OrderConfiguration] : Quan hệ 1-Nhiều với User.
             builder.HasOne(x => x.User)
-                   .WithMany()
+                   .WithMany(o => o.Orders)
                    .HasForeignKey(x => x.UserId)
                    .OnDelete(DeleteBehavior.Restrict);
         }

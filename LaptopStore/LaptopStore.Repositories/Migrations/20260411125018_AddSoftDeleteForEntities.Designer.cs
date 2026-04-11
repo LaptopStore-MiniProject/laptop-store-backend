@@ -4,6 +4,7 @@ using LaptopStore.Repositories.Context;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace LaptopStore.Repositories.Migrations
 {
     [DbContext(typeof(LaptopStoreDbContext))]
-    partial class LaptopStoreDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260411125018_AddSoftDeleteForEntities")]
+    partial class AddSoftDeleteForEntities
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -138,14 +141,9 @@ namespace LaptopStore.Repositories.Migrations
                     b.Property<Guid>("UserId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid?>("UserId1")
-                        .HasColumnType("uniqueidentifier");
-
                     b.HasKey("Id");
 
                     b.HasIndex("UserId");
-
-                    b.HasIndex("UserId1");
 
                     b.ToTable("Orders", (string)null);
                 });
@@ -189,13 +187,7 @@ namespace LaptopStore.Repositories.Migrations
                     b.Property<int>("BrandId")
                         .HasColumnType("int");
 
-                    b.Property<int?>("BrandId1")
-                        .HasColumnType("int");
-
                     b.Property<int>("CategoryId")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("CategoryId1")
                         .HasColumnType("int");
 
                     b.Property<string>("Cpu")
@@ -243,11 +235,7 @@ namespace LaptopStore.Repositories.Migrations
 
                     b.HasIndex("BrandId");
 
-                    b.HasIndex("BrandId1");
-
                     b.HasIndex("CategoryId");
-
-                    b.HasIndex("CategoryId1");
 
                     b.ToTable("Products", (string)null);
                 });
@@ -282,14 +270,13 @@ namespace LaptopStore.Repositories.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
 
                     b.Property<string>("Name")
                         .IsRequired()
-                        .ValueGeneratedOnAdd()
                         .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)")
-                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+                        .HasColumnType("nvarchar(50)");
 
                     b.HasKey("Id");
 
@@ -371,14 +358,10 @@ namespace LaptopStore.Repositories.Migrations
             modelBuilder.Entity("LaptopStore.Repositories.Entities.Order", b =>
                 {
                     b.HasOne("LaptopStore.Repositories.Entities.User", "User")
-                        .WithMany()
+                        .WithMany("Orders")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-
-                    b.HasOne("LaptopStore.Repositories.Entities.User", null)
-                        .WithMany("Orders")
-                        .HasForeignKey("UserId1");
 
                     b.Navigation("User");
                 });
@@ -405,24 +388,16 @@ namespace LaptopStore.Repositories.Migrations
             modelBuilder.Entity("LaptopStore.Repositories.Entities.Product", b =>
                 {
                     b.HasOne("LaptopStore.Repositories.Entities.Brand", "Brand")
-                        .WithMany()
+                        .WithMany("Products")
                         .HasForeignKey("BrandId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("LaptopStore.Repositories.Entities.Brand", null)
-                        .WithMany("Products")
-                        .HasForeignKey("BrandId1");
-
                     b.HasOne("LaptopStore.Repositories.Entities.Category", "Category")
-                        .WithMany()
+                        .WithMany("Products")
                         .HasForeignKey("CategoryId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-
-                    b.HasOne("LaptopStore.Repositories.Entities.Category", null)
-                        .WithMany("Products")
-                        .HasForeignKey("CategoryId1");
 
                     b.Navigation("Brand");
 
