@@ -17,6 +17,7 @@ namespace LaptopStore.Repositories.Configurations
             builder.ToTable("Brands");
             builder.HasKey(x => x.Id);
             builder.Property(x => x.Name).IsRequired().HasMaxLength(100);
+            builder.HasQueryFilter(b => !b.IsDeleted);
         }
     }
 }

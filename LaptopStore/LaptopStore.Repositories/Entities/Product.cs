@@ -20,7 +20,7 @@ namespace LaptopStore.Repositories.Entities
         public string Vga { get; set; } = string.Empty;
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-
+        public bool IsDeleted { get; set; } = false;
         // Khóa ngoại
         public int BrandId { get; set; }
         public Brand Brand { get; set; } = null!;

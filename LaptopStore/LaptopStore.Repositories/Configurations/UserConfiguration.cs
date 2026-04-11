@@ -33,6 +33,8 @@ namespace LaptopStore.Repositories.Configurations
                    .HasForeignKey(x => x.RoleId)
                    //Restrict (Hạn chế) có nghĩa là: "Nếu một Role đang có ít nhất một User thuộc về nó, thì không ai được phép xóa Role đó".
                    .OnDelete(DeleteBehavior.Restrict);
+
+            builder.HasQueryFilter(u => !u.IsDeleted);
         }
     }
 }

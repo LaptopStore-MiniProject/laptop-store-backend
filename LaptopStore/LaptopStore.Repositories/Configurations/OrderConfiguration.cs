@@ -20,11 +20,12 @@ namespace LaptopStore.Repositories.Configurations
             builder.Property(x => x.TotalAmount).HasColumnType("decimal(18,2)");
             builder.Property(x => x.ShippingAddress).IsRequired().HasMaxLength(500);
 
-            //// [OrderConfiguration] : Quan hệ 1-Nhiều với User.
-            //builder.HasOne(x => x.User)
-            //       .WithMany()
-            //       .HasForeignKey(x => x.UserId)
-            //       .OnDelete(DeleteBehavior.Restrict);
+            // [OrderConfiguration] : Quan hệ 1-Nhiều với User.
+            builder.HasOne(x => x.User)
+                   .WithMany(o => o.Orders)
+                   .HasForeignKey(x => x.UserId)
+                   .OnDelete(DeleteBehavior.Restrict);
+
         }
     }
 }
