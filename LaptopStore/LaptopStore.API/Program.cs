@@ -36,6 +36,7 @@ namespace LaptopStore.API
             builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
             // [Program] : Đăng ký các Services của nghiệp vụ (Business Logic)
             builder.Services.AddScoped<ICategoryService, CategoryService>();
+            builder.Services.AddScoped<IProductService, ProductService>();
 
             // [Program] : Đăng ký AutoMapper, tự động quét các Profile trong assembly của tầng Services
             builder.Services.AddAutoMapper(typeof(AutoMapperProfile).Assembly);
