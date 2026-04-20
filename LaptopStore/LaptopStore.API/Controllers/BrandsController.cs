@@ -90,7 +90,7 @@ namespace LaptopStore.API.Controllers
         }
 
         /// <summary>
-        /// Tạo mới một thương hiệu.
+        /// Tạo mới một thương hiệu. (Role = "Manager")
         /// </summary>
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] BrandRequestDto dto)
@@ -129,7 +129,7 @@ namespace LaptopStore.API.Controllers
         }
 
         /// <summary>
-        /// Cập nhật thông tin thương hiệu.
+        /// Cập nhật thông tin thương hiệu. (Role = "Manager")
         /// </summary>
         [HttpPut("{id}")]
         public async Task<IActionResult> Update(int id, [FromBody] BrandRequestDto dto)
