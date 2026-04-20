@@ -9,27 +9,15 @@ namespace LaptopStore.Services.DTOs.Order
 {
     public class OrderCreateRequestDto
     {
-        [Required(ErrorMessage = "Mã người dùng không được để trống")]
-        public int UserId { get; set; }
-
+        // [OrderCreateRequestDto] : Địa chỉ giao hàng là bắt buộc vì đây là nơi hệ thống sẽ giao đơn tới.
         [Required(ErrorMessage = "Địa chỉ giao hàng không được để trống")]
+        [MaxLength(500, ErrorMessage = "Địa chỉ giao hàng không được vượt quá 500 ký tự.")]
         public string ShippingAddress { get; set; } = string.Empty;
 
+        // [OrderCreateRequestDto] : Số điện thoại là bắt buộc để liên hệ giao hàng hoặc xác nhận đơn.
         [Required(ErrorMessage = "Số điện thoại không được để trống")]
         [Phone(ErrorMessage = "Số điện thoại không đúng định dạng")]
+        [MaxLength(20, ErrorMessage = "Số điện thoại không được vượt quá 20 ký tự.")]
         public string PhoneNumber { get; set; } = string.Empty;
-
-        // [OrderCreate] : Một đơn hàng phải có danh sách các món đồ đi kèm
-        [Required]
-        [MinLength(1, ErrorMessage = "Giỏ hàng không được trống")]
-        public List<OrderItemRequestDto> Items { get; set; } = new List<OrderItemRequestDto>();
-    }
-    public class OrderItemRequestDto
-    {
-        [Required]
-        public int ProductId { get; set; }
-
-        [Range(1, int.MaxValue, ErrorMessage = "Số lượng phải lớn hơn 0")]
-        public int Quantity { get; set; }
     }
 }

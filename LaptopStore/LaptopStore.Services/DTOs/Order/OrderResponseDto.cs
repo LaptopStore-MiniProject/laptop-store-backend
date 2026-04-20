@@ -8,8 +8,8 @@ namespace LaptopStore.Services.DTOs.Order
 {
     public class OrderResponseDto
     {
-        public int Id { get; set; }
-        public int UserId { get; set; }
+        public Guid Id { get; set; }
+        public Guid UserId { get; set; }
         public DateTime OrderDate { get; set; }
         public decimal TotalAmount { get; set; }
         public string Status { get; set; } = string.Empty;
@@ -19,11 +19,4 @@ namespace LaptopStore.Services.DTOs.Order
         // Kèm theo danh sách chi tiết đơn hàng
         public List<OrderDetailResponseDto> OrderDetails { get; set; } = new List<OrderDetailResponseDto>();
     }
-    public class OrderDetailResponseDto
-    {
-        public int ProductId { get; set; }
-        public int Quantity { get; set; }
-        public decimal UnitPrice { get; set; }
-    }
-
 }

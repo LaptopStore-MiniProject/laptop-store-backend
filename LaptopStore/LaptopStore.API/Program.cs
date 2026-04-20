@@ -102,6 +102,7 @@ namespace LaptopStore.API
             builder.Services.AddScoped<ITokenService, TokenService>();
             builder.Services.AddScoped<IBrandService, BrandService>();
             builder.Services.AddScoped<ICartService,CartService>();
+            builder.Services.AddScoped<IOrderService, OrderService>();
             // [Program] : Đăng ký AutoMapper, tự động quét các Profile trong assembly của tầng Services
             builder.Services.AddAutoMapper(typeof(AutoMapperProfile));
 

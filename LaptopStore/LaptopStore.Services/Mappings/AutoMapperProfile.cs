@@ -4,6 +4,7 @@ using LaptopStore.Services.DTOs.Auth;
 using LaptopStore.Services.DTOs.Brand;
 using LaptopStore.Services.DTOs.Cart;
 using LaptopStore.Services.DTOs.Category;
+using LaptopStore.Services.DTOs.Order;
 using LaptopStore.Services.DTOs.Product;
 using System;
 using System.Collections.Generic;
@@ -46,6 +47,17 @@ namespace LaptopStore.Services.Mappings
             CreateMap<Cart, CartItemResponseDto>()
                 .ForMember(dest => dest.ThumbnailUrl, opt => opt.Ignore());
             CreateMap<Cart, CartResponseDto>();
+
+
+
+            // [OrderMappingProfile] : Ánh xạ từ Order entity sang DTO. Các thuộc tính cùng tên sẽ tự động map (kể cả List<OrderDetail>).
+            CreateMap<Order, OrderResponseDto>();
+            // [OrderMappingProfile] : Ánh xạ chi tiết cấu hình cho OrderDetail, giải quyết các logic custom.
+            CreateMap<OrderDetail, OrderDetailResponseDto>()
+                // Lấy ProductName từ bảng Product
+                .ForMember(dest => dest.ProductName, opt => opt.MapFrom(src => src.Product != null ? src.Product.Name : string.Empty))
+                // Tự động tính toán LineTotal
+                .ForMember(dest => dest.LineTotal, opt => opt.MapFrom(src => src.UnitPrice * src.Quantity));
         }
     }
 }
