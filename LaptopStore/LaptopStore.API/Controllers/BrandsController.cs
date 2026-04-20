@@ -2,6 +2,7 @@
 using LaptopStore.Repositories.Entities;
 using LaptopStore.Services.DTOs.Brand;
 using LaptopStore.Services.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using System.Collections.Generic;
@@ -90,8 +91,9 @@ namespace LaptopStore.API.Controllers
         }
 
         /// <summary>
-        /// Tạo mới một thương hiệu. (Role = "Manager")
+        /// Tạo mới một thương hiệu.
         /// </summary>
+        [Authorize(Roles = "Manager")]
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] BrandRequestDto dto)
         {
@@ -131,6 +133,7 @@ namespace LaptopStore.API.Controllers
         /// <summary>
         /// Cập nhật thông tin thương hiệu. (Role = "Manager")
         /// </summary>
+        [Authorize(Roles = "Manager")]
         [HttpPut("{id}")]
         public async Task<IActionResult> Update(int id, [FromBody] BrandRequestDto dto)
         {
@@ -170,6 +173,7 @@ namespace LaptopStore.API.Controllers
         /// <summary>
         /// Xóa mềm một thương hiệu.
         /// </summary>
+        [Authorize(Roles = "Manager")]
         [HttpDelete("{id}")]
         public async Task<IActionResult> Detele(int id)
         {
