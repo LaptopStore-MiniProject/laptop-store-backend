@@ -3,6 +3,7 @@ using LaptopStore.Repositories.Entities;
 using LaptopStore.Services.DTOs.Category;
 using LaptopStore.Services.Implements;
 using LaptopStore.Services.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using System.Net.NetworkInformation;
@@ -97,6 +98,7 @@ namespace LaptopStore.API.Controllers
         /// <returns>Trả về thông tin danh mục vừa được tạo kèm theo đường dẫn tới resource đó.</returns>
         /// <response code="201">Tạo mới danh mục thành công.</response>
         /// <response code="400">Dữ liệu đầu vào không hợp lệ (ví dụ: để trống tên).</response>
+        [Authorize(Roles = "Manager")]
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] CategoryRequestDto dto) 
         {
@@ -126,6 +128,7 @@ namespace LaptopStore.API.Controllers
         /// <response code="200">Cập nhật danh mục thành công.</response>
         /// <response code="400">Dữ liệu đầu vào không hợp lệ.</response>
         /// <response code="404">Không tìm thấy danh mục để cập nhật.</response>
+        [Authorize(Roles = "Manager")]
         [HttpPut("{id}")]
         public async Task<IActionResult> Update(int id, [FromBody] CategoryRequestDto dto)
         {
@@ -166,6 +169,7 @@ namespace LaptopStore.API.Controllers
         /// <returns>Kết quả của quá trình xóa mềm.</returns>
         /// <response code="200">Xóa mềm danh mục thành công.</response>
         /// <response code="404">Không tìm thấy danh mục để xóa.</response>
+        [Authorize(Roles = "Manager")]
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(int id)
         {

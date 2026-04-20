@@ -1,6 +1,7 @@
 using LaptopStore.API.Common;
 using LaptopStore.Services.DTOs.Product;
 using LaptopStore.Services.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace LaptopStore.API.Controllers
@@ -81,7 +82,7 @@ namespace LaptopStore.API.Controllers
                 });
             }
         }
-
+        [Authorize(Roles = "Manager")]
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] ProductRequestDto dto)
         {
@@ -108,7 +109,7 @@ namespace LaptopStore.API.Controllers
                 });
             }
         }
-
+        [Authorize(Roles = "Manager")]
         [HttpPut("{id:int}")]
         public async Task<IActionResult> Update(int id, [FromBody] ProductRequestDto dto)
         {
@@ -145,7 +146,7 @@ namespace LaptopStore.API.Controllers
                 });
             }
         }
-
+        [Authorize(Roles = "Manager")]
         [HttpDelete("{id:int}")]
         public async Task<IActionResult> Delete(int id)
         {

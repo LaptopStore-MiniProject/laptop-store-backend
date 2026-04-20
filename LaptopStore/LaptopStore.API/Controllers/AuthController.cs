@@ -1,6 +1,7 @@
 ﻿using LaptopStore.API.Common;
 using LaptopStore.Services.DTOs.Auth;
 using LaptopStore.Services.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
@@ -131,7 +132,7 @@ namespace LaptopStore.API.Controllers
                 });
             }
         }
-
+        [Authorize]
         [HttpPost("revoke-refresh-token")]
         public async Task<IActionResult> RevokeRefreshToken([FromBody] RevokeRefreshTokenRequestDto dto)
         {
