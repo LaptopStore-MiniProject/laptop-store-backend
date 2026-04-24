@@ -1,4 +1,5 @@
 using LaptopStore.API.Common;
+using LaptopStore.Services.DTOs.Common;
 using LaptopStore.Services.DTOs.Product;
 using LaptopStore.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -176,6 +177,36 @@ namespace LaptopStore.API.Controllers
             {
                 _logger.LogError(ex, "[ProductsController] : Lỗi hệ thống khi xóa sản phẩm Id = {ProductId}.", id);
                 return StatusCode(500, new ApiResponse<object>
+                {
+                    Status = 500,
+                    Message = "Lỗi máy chủ.",
+                    Data = null
+                });
+            }
+        }
+
+        [HttpGet("query")]
+        public async Task<IActionResult> GetProducts([FromQuery] ProductQueryParametersDto dto)
+        {
+            try
+            {
+                _logger.LogInformation(
+                        "[ProductsController] : Nhận request lấy danh sách sản phẩm có phân trang. PageIndex = {PageIndex}, PageSize = {PageSize}.",
+                        dto.PageIndex,
+                        dto.PageSize);
+
+                var result = await _productService.GetProductsAsync(dto);
+                return Ok(new ApiResponse<PagedResultDto<ProductResponseDto>>
+                {
+                    Status = 200,
+                    Message = "Lấy danh sách sản phẩm thành công.",
+                    Data = result
+                });
+            }
+            catch (Exception ex) 
+            {
+                _logger.LogError(ex, "[ProductsController] : Lỗi hệ thống khi lấy danh sách sản phẩm có filter/search/sort/paging.");
+                return StatusCode(500, new ApiResponse<object> 
                 {
                     Status = 500,
                     Message = "Lỗi máy chủ.",

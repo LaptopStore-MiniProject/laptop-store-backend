@@ -19,5 +19,10 @@ namespace LaptopStore.Repositories.Interfaces
         IGenericRepository<RefreshToken> RefreshTokens { get; }
         // [IUnitOfWork] : Hàm quan trọng nhất, gọi SaveChangesAsync() của DbContext để áp dụng mọi thay đổi xuống DB.
         Task<int> SaveChangesAsync();
+
+        // [UnitOfWork] : Bổ sung các hàm kiểm soát Transaction thủ công cho các luồng nghiệp vụ phức tạp.
+        Task BeginTransactionAsync();
+        Task CommitTransactionAsync();
+        Task RollbackTransactionAsync();
     }
 }

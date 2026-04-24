@@ -2,6 +2,7 @@ using LaptopStore.Repositories.Context;
 using LaptopStore.Repositories.Implements;
 using LaptopStore.Repositories.Interfaces;
 using LaptopStore.Services.Configurations;
+using LaptopStore.Services.Helpers;
 using LaptopStore.Services.Implements;
 using LaptopStore.Services.Interfaces;
 using LaptopStore.Services.Mappings;
@@ -11,6 +12,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
+using Microsoft.Extensions.Caching.StackExchangeRedis;
 
 namespace LaptopStore.API
 {
@@ -62,6 +64,12 @@ namespace LaptopStore.API
             builder.Services.AddDbContext<LaptopStoreDbContext>(options =>
     options.UseSqlServer(
         builder.Configuration.GetConnectionString("DefaultConnection")));
+            builder.Services.AddStackExchangeRedisCache(options => 
+            {
+                // [Program] : Khai báo Redis connection string để IDistributedCache dùng Redis thay vì memory cache.
+                options.Configuration = builder.Configuration.GetConnectionString("Redis");
+                options.InstanceName = "LaptopStore:"; // Thêm tiền tố để khỏi nhầm với project khác nếu dùng chung 1 Redis
+            });
 
 
 
@@ -103,6 +111,8 @@ namespace LaptopStore.API
             builder.Services.AddScoped<IBrandService, BrandService>();
             builder.Services.AddScoped<ICartService,CartService>();
             builder.Services.AddScoped<IOrderService, OrderService>();
+            builder.Services.AddScoped<IProductQueryBuilder, ProductQueryBuilder>();
+            builder.Services.AddScoped<ICacheService, CacheService>();
             // [Program] : Đăng ký AutoMapper, tự động quét các Profile trong assembly của tầng Services
             builder.Services.AddAutoMapper(typeof(AutoMapperProfile));
 
