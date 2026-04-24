@@ -36,7 +36,7 @@ namespace LaptopStore.Services.Implements
         public async Task<CheckoutOrderResultDto> CheckoutAsync(Guid userId, OrderCreateRequestDto dto)
         {
             _logger.LogInformation("[OrderService] : Bắt đầu checkout cho user {UserId}.", userId);
-            var cart = await _unitOfWork.Carts.GetAsync(
+            Cart? cart = await _unitOfWork.Carts.GetAsync(
                     c => c.UserId == userId,
                     includeProperties: "CartItems.Product",
                     tracked: true
@@ -101,58 +101,68 @@ namespace LaptopStore.Services.Implements
                     Issues = issues
                 };
             }
-            // [OrderService] : Tới đây mới được xem là cart hợp lệ để chốt đơn và snapshot giá từ CartItem.UnitPrice.
-            decimal totalAmount = cart.CartItems.Sum(ci => ci.UnitPrice * ci.Quantity);
-            Order order = new Order
-            {
-                UserId = userId,
-                OrderDate = DateTime.UtcNow,
-                ShippingAddress = dto.ShippingAddress.Trim(),
-                PhoneNumber = dto.PhoneNumber.Trim(),
-                Status = "Pending",
-                TotalAmount = totalAmount,
-            };
-            await _unitOfWork.Orders.AddAsync(order);
-            await _unitOfWork.SaveChangesAsync();
 
-            List<OrderDetail> orderDetails = new List<OrderDetail>();
-
-            foreach (CartItem item in cart.CartItems) 
+            await _unitOfWork.BeginTransactionAsync();
+            try
             {
-                Product product = item.Product;
-                orderDetails.Add(new OrderDetail 
+                // [OrderService] : Tới đây mới được xem là cart hợp lệ để chốt đơn và snapshot giá từ CartItem.UnitPrice.
+                decimal totalAmount = cart.CartItems.Sum(ci => ci.UnitPrice * ci.Quantity);
+                Order order = new Order
                 {
-                    OrderId = order.Id,
-                    ProductId = product.Id,
-                    Quantity = item.Quantity,
+                    UserId = userId,
+                    OrderDate = DateTime.UtcNow,
+                    ShippingAddress = dto.ShippingAddress.Trim(),
+                    PhoneNumber = dto.PhoneNumber.Trim(),
+                    Status = "Pending",
+                    TotalAmount = totalAmount,
+                };
+                await _unitOfWork.Orders.AddAsync(order);
+                await _unitOfWork.SaveChangesAsync();
 
-                    // [OrderService] : UnitPrice của OrderDetail phải lấy từ CartItem.UnitPrice đã được user đồng bộ/chấp nhận trước đó.
-                    UnitPrice = item.UnitPrice
-                });
-                product.StockQuantity -= item.Quantity;
+                List<OrderDetail> orderDetails = new List<OrderDetail>();
+
+                foreach (CartItem item in cart.CartItems)
+                {
+                    Product product = item.Product;
+                    orderDetails.Add(new OrderDetail
+                    {
+                        OrderId = order.Id,
+                        ProductId = product.Id,
+                        Quantity = item.Quantity,
+
+                        // [OrderService] : UnitPrice của OrderDetail phải lấy từ CartItem.UnitPrice đã được user đồng bộ/chấp nhận trước đó.
+                        UnitPrice = item.UnitPrice
+                    });
+                    product.StockQuantity -= item.Quantity;
+                }
+
+                await _unitOfWork.OrderDetails.AddRangeAsync(orderDetails);
+                // [OrderService] : Sau khi tạo order thành công thì xóa toàn bộ cart item để giỏ hàng quay về trạng thái rỗng.
+                _unitOfWork.CartItems.RemoveRange(cart.CartItems.ToList());
+                await _unitOfWork.SaveChangesAsync();
+
+                _logger.LogInformation("[OrderService] : Checkout thành công. OrderId = {OrderId}, UserId = {UserId}.", order.Id, userId);
+
+                var createdOrder = await _unitOfWork.Orders.GetAsync(
+                    o => o.Id == order.Id,
+                    includeProperties: "OrderDetails.Product",
+                    tracked: false);
+
+                return new CheckoutOrderResultDto
+                {
+                    IsSuccess = true,
+                    Message = "Đặt hàng thành công.",
+                    Order = _mapper.Map<OrderResponseDto>(createdOrder!)
+                };
             }
-
-            await _unitOfWork.OrderDetails.AddRangeAsync(orderDetails);
-            // [OrderService] : Sau khi tạo order thành công thì xóa toàn bộ cart item để giỏ hàng quay về trạng thái rỗng.
-            _unitOfWork.CartItems.RemoveRange(cart.CartItems.ToList());
-            await _unitOfWork.SaveChangesAsync();
-
-            _logger.LogInformation("[OrderService] : Checkout thành công. OrderId = {OrderId}, UserId = {UserId}.", order.Id, userId);
-
-            var createdOrder = await _unitOfWork.Orders.GetAsync(
-                o => o.Id == order.Id,
-                includeProperties: "OrderDetails.Product",
-                tracked: false);
-
-            return new CheckoutOrderResultDto
+            catch (Exception ex) 
             {
-                IsSuccess = true,
-                Message = "Đặt hàng thành công.",
-                Order = _mapper.Map<OrderResponseDto>(createdOrder!)
-            };
-
+                await _unitOfWork.RollbackTransactionAsync();
+                _logger.LogError(ex, "[OrderService] : Lỗi khi checkout cho userId = {UserId}. Đã rollback dữ liệu.", userId);
+                throw; // Throw lại lỗi hoặc trả về Dto mang thông báo lỗi tuỳ thiết kế của bạn.
+            }
         }
-
+            
         public async Task<List<OrderResponseDto>> GetAllOrdersAsync()
         {
             _logger.LogInformation("[OrderService] : Bắt đầu lấy toàn bộ đơn hàng cho admin.");

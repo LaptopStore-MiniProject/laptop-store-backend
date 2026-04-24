@@ -1,9 +1,14 @@
 using AutoMapper;
 using LaptopStore.Repositories.Entities;
 using LaptopStore.Repositories.Interfaces;
+using LaptopStore.Services.DTOs.Common;
 using LaptopStore.Services.DTOs.Product;
+using LaptopStore.Services.Helpers;
 using LaptopStore.Services.Interfaces;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System.Linq;
+using System.Linq.Expressions;
 
 namespace LaptopStore.Services.Implements
 {
@@ -12,12 +17,20 @@ namespace LaptopStore.Services.Implements
         private readonly IUnitOfWork _unitOfWork;
         private readonly IMapper _mapper;
         private readonly ILogger<ProductService> _logger;
+        private readonly IProductQueryBuilder _productQueryBuilder;
+        private readonly ICacheService _cacheService;
+        // cache key
+        private string ALL_PRODUCTS_KEY = "products:all";
+        private string PRODUCTS_PREFIX = $"products:id:";
+        private string PRODUCTFILTER = "";
 
-        public ProductService(IUnitOfWork unitOfWork, IMapper mapper, ILogger<ProductService> logger)
+        public ProductService(IUnitOfWork unitOfWork, IMapper mapper, ILogger<ProductService> logger, IProductQueryBuilder productQueryBuilder, ICacheService cacheService)
         {
             _unitOfWork = unitOfWork;
             _mapper = mapper;
             _logger = logger;
+            _productQueryBuilder = productQueryBuilder;
+            _cacheService = cacheService;
         }
 
         public async Task<ProductResponseDto> CreateAsync(ProductRequestDto dto)
@@ -32,9 +45,13 @@ namespace LaptopStore.Services.Implements
                 p => p.Id == product.Id,
                 includeProperties: "Brand,Category,ProductImages",
                 tracked: false);
+            var mappedProduct = _mapper.Map<ProductResponseDto>(createdProduct);
 
+            await _cacheService.RemoveAsync(ALL_PRODUCTS_KEY);
+            // [ProductService] : Có thể cache luôn chi tiết sản phẩm mới tạo.
+            await _cacheService.SetAsync($"{PRODUCTS_PREFIX}{product.Id}", mappedProduct, TimeSpan.FromMinutes(10));
             _logger.LogInformation($"[ProductService] : Tạo thành công sản phẩm mới với Id = {product.Id}.");
-            return _mapper.Map<ProductResponseDto>(createdProduct);
+            return mappedProduct;
         }
 
         public async Task<bool> DeleteAsync(int id)
@@ -51,6 +68,9 @@ namespace LaptopStore.Services.Implements
             existingProduct.IsDeleted = true;
             await _unitOfWork.SaveChangesAsync();
 
+            await _cacheService.RemoveAsync(ALL_PRODUCTS_KEY);
+            await _cacheService.RemoveAsync($"{PRODUCTS_PREFIX}{id}");
+
             _logger.LogInformation($"[ProductService] : Đã xóa mềm thành công sản phẩm Id = {id}.");
             return true;
         }
@@ -59,20 +79,38 @@ namespace LaptopStore.Services.Implements
         {
             _logger.LogInformation("[ProductService] : Bắt đầu lấy danh sách toàn bộ sản phẩm.");
 
+            var cached = await _cacheService.GetAsync<List<ProductResponseDto>>(ALL_PRODUCTS_KEY);
+            if (cached != null) 
+            {
+                _logger.LogInformation("[ProductService] : Trả danh sách sản phẩm từ Redis cache.");
+                return cached;
+            }
+
             var products = await _unitOfWork.Products.GetAllAsync(
+                filter: p => !p.IsDeleted,
                 includeProperties: "Brand,Category,ProductImages",
                 tracked: false);
+            var mappedProducts = _mapper.Map<IEnumerable<ProductResponseDto>>(products);
+
+            // [ProductService] : Lưu lại danh sách product vào Redis để các request sau đọc nhanh hơn.
+            await _cacheService.SetAsync(ALL_PRODUCTS_KEY, mappedProducts,TimeSpan.FromMinutes(5));
 
             _logger.LogInformation($"[ProductService] : Đã lấy thành công {products.Count} sản phẩm.");
-            return _mapper.Map<IEnumerable<ProductResponseDto>>(products);
+            return mappedProducts;
         }
 
         public async Task<ProductResponseDto> GetByIdAsync(int id)
         {
             _logger.LogInformation($"[ProductService] : Bắt đầu tìm kiếm sản phẩm với Id = {id}.");
 
+            var cached = await _cacheService.GetAsync<ProductResponseDto>($"{PRODUCTS_PREFIX}{id}");
+            if (cached != null) 
+            {
+                _logger.LogInformation("[ProductService] : Trả chi tiết sản phẩm Id = {ProductId} từ Redis cache.", id);
+                return cached;
+            }
             var product = await _unitOfWork.Products.GetAsync(
-                p => p.Id == id,
+                p => p.Id == id && !p.IsDeleted,
                 includeProperties: "Brand,Category,ProductImages",
                 tracked: false);
 
@@ -81,15 +119,50 @@ namespace LaptopStore.Services.Implements
                 _logger.LogWarning($"[ProductService] : Không tìm thấy sản phẩm với Id = {id}.");
                 return null!;
             }
+            var mappedProduct = _mapper.Map<ProductResponseDto>(product);
 
-            return _mapper.Map<ProductResponseDto>(product);
+            await _cacheService.SetAsync($"{PRODUCTS_PREFIX}{id}", mappedProduct, TimeSpan.FromMinutes(5));
+            _logger.LogInformation("[ProductService] : Đã lưu chi tiết sản phẩm Id = {ProductId} vào cache.", id);
+            return mappedProduct;
+        }
+
+        public async Task<PagedResultDto<ProductResponseDto>> GetProductsAsync(ProductQueryParametersDto query)
+        {
+            _logger.LogInformation("[ProductService] : Bắt đầu lấy danh sách sản phẩm có phân trang, lọc, sắp xếp và tìm kiếm.");
+
+            var filter = _productQueryBuilder.BuildFilter(query);
+            var orderBy = _productQueryBuilder.BuildOrderBy(query.SortBy);
+            var include = _productQueryBuilder.BuildInclude();
+
+            var (items, totalRecords) = await _unitOfWork.Products.GetPagedAsync
+                (
+                    filter: filter,
+                    orderBy: orderBy,
+                    include: include,
+                    pageIndex: query.PageIndex,
+                    pageSize: query.PageSize,
+                    tracked: false
+                );
+            _logger.LogInformation(
+            "[ProductService] : Lấy danh sách sản phẩm thành công. PageIndex = {PageIndex}, PageSize = {PageSize}, TotalRecords = {TotalRecords}.",
+            query.PageIndex,
+            query.PageSize,
+            totalRecords);
+
+            return new PagedResultDto<ProductResponseDto>
+            {
+                Items = _mapper.Map<List<ProductResponseDto>>(items),
+                TotalRecords = totalRecords,
+                PageIndex = query.PageIndex,
+                PageSize = query.PageSize
+            };
         }
 
         public async Task<bool> UpdateAsync(int id, ProductRequestDto dto)
         {
             _logger.LogInformation($"[ProductService] : Bắt đầu cập nhật sản phẩm Id = {id}.");
 
-            var existingProduct = await _unitOfWork.Products.GetAsync(p => p.Id == id);
+            var existingProduct = await _unitOfWork.Products.GetAsync(p => p.Id == id && !p.IsDeleted);
             if (existingProduct == null)
             {
                 _logger.LogWarning($"[ProductService] : Thất bại khi cập nhật. Không tìm thấy sản phẩm Id = {id}.");
@@ -98,6 +171,9 @@ namespace LaptopStore.Services.Implements
 
             _mapper.Map(dto, existingProduct);
             await _unitOfWork.SaveChangesAsync();
+            // [ProductService] : Xóa cache cũ để request sau lấy dữ liệu mới nhất từ DB.
+            await _cacheService.RemoveAsync(ALL_PRODUCTS_KEY);
+            await _cacheService.RemoveAsync($"{PRODUCTS_PREFIX}{id}");
 
             _logger.LogInformation($"[ProductService] : Cập nhật thành công sản phẩm Id = {id}.");
             return true;

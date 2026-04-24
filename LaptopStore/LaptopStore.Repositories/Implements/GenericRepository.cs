@@ -1,7 +1,10 @@
 ﻿using LaptopStore.Repositories.Context;
+using LaptopStore.Repositories.Entities;
 using LaptopStore.Repositories.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using System.Linq.Expressions;
 using System.Threading.Tasks;
+using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 
 namespace LaptopStore.Repositories.Implements
 {
@@ -81,6 +84,34 @@ namespace LaptopStore.Repositories.Implements
             // [GenericRepository] : Thực thi câu lệnh SQL và lấy bản ghi đầu tiên khớp điều kiện (hoặc null).
             return await query.FirstOrDefaultAsync();
         }
+
+        public async Task<(List<T> Items, int TotalRecords)> GetPagedAsync(Expression<Func<T, bool>>? filter = null, Func<IQueryable<T>, IOrderedQueryable<T>>? orderBy = null, Func<IQueryable<T>, IQueryable<T>>? include = null, int pageIndex = 1, int pageSize = 8, bool tracked = true)
+        {
+            IQueryable<T> query = _dbset;
+
+            if (!tracked)
+                query = query.AsNoTracking();
+
+            if (filter != null)
+                query = query.Where(filter);
+
+            if (include != null)
+                query = include(query);
+
+            // [GenericRepository] : Đếm tổng số bản ghi thỏa mãn điều kiện filter (chưa cắt trang) để tính TotalPages.
+            int totalRecords = await query.CountAsync();
+
+            if (orderBy != null)
+                query = orderBy(query);
+
+            // [GenericRepository] : Áp dụng Paging: Bỏ qua các records của trang trước (Skip) và lấy số lượng của trang hiện tại (Take).
+            var items = await query.Skip((pageIndex - 1) * pageSize) //(1 - 1) * 8 = 0  // 2. (2 - 1) * 8 = 8
+                                   .Take(pageSize) // Lấy từ 1 đến 8 // lấy từ 9 đến 16
+                                   .ToListAsync();
+
+            return (items, totalRecords);
+        }
+
         // [GenericRepository] : Đánh dấu xóa một thực thể.
         public void Remove(T entity)
         {
@@ -96,5 +127,7 @@ namespace LaptopStore.Repositories.Implements
         {
             _dbset.Update(entity);
         }
+
+
     }
 }

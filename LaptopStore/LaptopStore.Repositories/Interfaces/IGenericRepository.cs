@@ -25,5 +25,15 @@ namespace LaptopStore.Repositories.Interfaces
         void Update(T entity);
         void Remove(T entity);
         void RemoveRange(IEnumerable<T> entities);
+
+
+        Task<(List<T> Items, int TotalRecords)> GetPagedAsync(
+            Expression<Func<T,bool>>? filter = null,
+            Func<IQueryable<T>, IOrderedQueryable<T>>? orderBy = null,
+            Func<IQueryable<T>, IQueryable<T>>? include = null,
+            int pageIndex = 1,
+            int pageSize = 10,
+            bool tracked = true
+            );
     }
 }
