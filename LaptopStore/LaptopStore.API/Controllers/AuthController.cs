@@ -1,4 +1,6 @@
-﻿using LaptopStore.API.Common;
+﻿using AutoMapper;
+using Azure.Core;
+using LaptopStore.API.Common;
 using LaptopStore.Services.DTOs.Auth;
 using LaptopStore.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -12,11 +14,14 @@ namespace LaptopStore.API.Controllers
     public class AuthController : ControllerBase
     {
         private readonly IAuthService _authService;
+        private readonly IMapper _mapper;
         private readonly ILogger<AuthController> _logger;
 
-        public AuthController(IAuthService authService,ILogger<AuthController> logger)
+
+        public AuthController(IAuthService authService,IMapper mapper,ILogger<AuthController> logger)
         {
             _authService = authService;
+            _mapper = mapper;
             _logger = logger;
         }
 
@@ -38,11 +43,15 @@ namespace LaptopStore.API.Controllers
                         Data = null
                     });
                 }
-                return Ok(new ApiResponse<AuthResponseDto>
+                SetRefreshTokenCookie(result.RefreshToken, result.RefreshTokenExpiredAtUtc);
+
+                var clientResponse = _mapper.Map<ClientAuthResponseDto>(result);
+
+                return Ok(new ApiResponse<ClientAuthResponseDto>
                 {
                     Status = 200,
                     Message = "Đăng ký tài khoản thành công.",
-                    Data = result
+                    Data = clientResponse
                 });
             }
             catch (Exception ex)
@@ -63,24 +72,32 @@ namespace LaptopStore.API.Controllers
             try
             {
                 _logger.LogInformation("[AuthController] : Nhận request đăng nhập với email {Email}.", dto.Email);
-
+                // 1. Gọi service xử lý đăng nhập, trả về AccessToken và RefreshToken
                 var result = await _authService.LoginAsync(dto);
 
                 if (result == null)
                 {
+                    _logger.LogWarning("[AuthController] : Đăng nhập thất bại với email {Email}", dto.Email);
                     return Unauthorized(new ApiResponse<object>
                     {
                         Status = 401,
-                        Message = "Email hoặc mật khẩu không đúng.",
+                        Message = "Tài khoản hoặc mật khẩu không chính xác.",
                         Data = null
                     });
                 }
 
-                return Ok(new ApiResponse<AuthResponseDto>
+                // Gắn Refresh Token vào HttpOnly Cookie
+                SetRefreshTokenCookie(result.RefreshToken, result.RefreshTokenExpiredAtUtc);
+
+                // Cắt bỏ RefreshToken khỏi JSON Response để Client không lưu bậy bạ
+                var clientResponse = _mapper.Map<ClientAuthResponseDto>(result);
+
+                _logger.LogInformation("[AuthController] : Đăng nhập thành công và đã set Refresh Token Cookie cho user {UserId}", result.UserId);
+                return Ok(new ApiResponse<ClientAuthResponseDto>
                 {
                     Status = 200,
                     Message = "Đăng nhập thành công.",
-                    Data = result
+                    Data = clientResponse
                 });
             }
             catch (Exception ex)
@@ -96,15 +113,16 @@ namespace LaptopStore.API.Controllers
         }
 
         [HttpPost("refresh-token")]
-        public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequestDto dto)
+        public async Task<IActionResult> RefreshToken()
         {
             try
             {
                 _logger.LogInformation("[AuthController] : Nhận request refresh token.");
 
-                var result = await _authService.RefreshTokenAsync(dto);
+                // Đọc token từ HttpOnly Cookie
+                var refreshToken = Request.Cookies["refreshToken"];
 
-                if (result == null)
+                if (string.IsNullOrEmpty(refreshToken))
                 {
                     return Unauthorized(new ApiResponse<object>
                     {
@@ -113,12 +131,26 @@ namespace LaptopStore.API.Controllers
                         Data = null
                     });
                 }
+                var result = await _authService.RefreshTokenAsync(refreshToken);
+                if (result == null)
+                {
+                    // Nếu failed (hết hạn, bị hack, v.v.), xóa luôn cái cookie cũ ở trình duyệt
+                    Response.Cookies.Delete("refreshToken");
+                    return Unauthorized(new ApiResponse<object>
+                    {
+                        Status = 401,
+                        Message = "Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại.",
+                        Data = null
+                    });
+                }
 
-                return Ok(new ApiResponse<AuthResponseDto>
+                SetRefreshTokenCookie(result.RefreshToken, result.RefreshTokenExpiredAtUtc);
+                var clientResponse = _mapper.Map<ClientAuthResponseDto>(result);
+                return Ok(new ApiResponse<ClientAuthResponseDto>
                 {
                     Status = 200,
                     Message = "Làm mới token thành công.",
-                    Data = result
+                    Data = clientResponse
                 });
             }
             catch (Exception ex)
@@ -169,6 +201,40 @@ namespace LaptopStore.API.Controllers
                     Data = null
                 });
             }
+        }
+        [HttpPost("logout")]
+        public async Task<IActionResult> Logout()
+        {
+            var refreshToken = Request.Cookies["refreshToken"];
+
+            if (!string.IsNullOrEmpty(refreshToken))
+            {
+                // Gọi hàm trong AuthService để Update RevokedAtUtc = DateTime.UtcNow
+                await _authService.RevokeRefreshTokenAsync(refreshToken);
+            }
+
+            // Xóa cookie trên trình duyệt
+            Response.Cookies.Delete("refreshToken");
+
+            return Ok(new ApiResponse<object>
+            {
+                Status = 200,
+                Message = "Đăng xuất thành công.",
+                Data = null
+            });
+        }
+
+        private void SetRefreshTokenCookie(string token, DateTime expiresAt) 
+        {
+            var cookieOptions = new CookieOptions
+            {
+                HttpOnly = true, // Bắt buộc: JS ở Client không thể đọc được
+                Secure = true,  // Bắt buộc: Chỉ gửi qua kết nối HTTPS (Cần thiết trên Production)
+                SameSite = SameSiteMode.Strict,// Ngăn chặn tấn công CSRF
+                Expires = expiresAt // Cấu hình thời gian hết hạn khớp với hạn của Refresh Token
+            };
+
+            Response.Cookies.Append("refreshToken", token, cookieOptions);
         }
 
     }

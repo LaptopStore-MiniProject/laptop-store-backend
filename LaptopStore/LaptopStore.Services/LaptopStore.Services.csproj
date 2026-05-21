@@ -16,9 +16,5 @@
   <ItemGroup>
     <ProjectReference Include="..\LaptopStore.Repositories\LaptopStore.Repositories.csproj" />
   </ItemGroup>
-	
-  <ItemGroup>
-	 <Folder Include="DTOs\Auth\" />
-  </ItemGroup>
 
 </Project>

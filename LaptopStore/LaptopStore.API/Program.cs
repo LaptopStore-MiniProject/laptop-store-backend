@@ -163,7 +163,8 @@ namespace LaptopStore.API
                         policy
                             .WithOrigins("http://localhost:5173")
                             .AllowAnyHeader()
-                            .AllowAnyMethod();
+                            .AllowAnyMethod()
+                            .AllowCredentials(); // BẮT BUỘC: Cho phép nhận Cookie/Credentials từ Client
                     });
                 });
 
