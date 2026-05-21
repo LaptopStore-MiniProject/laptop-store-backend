@@ -58,6 +58,9 @@ namespace LaptopStore.Services.Mappings
                 .ForMember(dest => dest.ProductName, opt => opt.MapFrom(src => src.Product != null ? src.Product.Name : string.Empty))
                 // Tự động tính toán LineTotal
                 .ForMember(dest => dest.LineTotal, opt => opt.MapFrom(src => src.UnitPrice * src.Quantity));
+
+
+            CreateMap<AuthResponseDto, ClientAuthResponseDto>();
         }
     }
 }

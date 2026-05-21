@@ -24,7 +24,7 @@ namespace LaptopStore.Services.Implements
         private readonly ITokenService _tokenService;
         private readonly JwtSettings _jwtSettings;
 
-        public AuthService(IUnitOfWork unitOfWork, IMapper mapper,ILogger<AuthService> logger, ITokenService tokenService, IOptions<JwtSettings> JwtOptions)
+        public AuthService(IUnitOfWork unitOfWork, IMapper mapper, ILogger<AuthService> logger, ITokenService tokenService, IOptions<JwtSettings> JwtOptions)
         {
             _unitOfWork = unitOfWork;
             _mapper = mapper;
@@ -37,7 +37,7 @@ namespace LaptopStore.Services.Implements
         {
             _logger.LogInformation("[AuthService] : Bắt đầu xử lý đăng nhập cho email {Email}.", dto.Email);
             User? user = await _unitOfWork.Users.GetAsync(u => u.Email.ToLower() == dto.Email.ToLower(), includeProperties: "Role", tracked: false);
-            if (user == null) 
+            if (user == null)
             {
                 _logger.LogWarning("[AuthService] : Đăng nhập thất bại vì không tìm thấy email {Email}.", dto.Email);
                 return null;
@@ -53,69 +53,80 @@ namespace LaptopStore.Services.Implements
             return await BuildAuthResponseWithRefreshTokenAsync(user);
         }
 
-        public async Task<AuthResponseDto?> RefreshTokenAsync(RefreshTokenRequestDto dto)
+        public async Task<AuthResponseDto?> RefreshTokenAsync(string refreshToken)
         {
-            _logger.LogInformation("[AuthService] : Bắt đầu xử lý refresh token.");
-            // [AuthService] : Đọc claim từ access token cũ để biết token thuộc về user nào.
-            var principal = _tokenService.GetPrincipalFromExpiredToken(dto.AccessToken);
-            if (principal == null)
-            {
-                _logger.LogWarning("[AuthService] : Refresh token thất bại vì access token không hợp lệ.");
-                return null;
-            }
-            var userIdCalim = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (string.IsNullOrWhiteSpace(userIdCalim) || !Guid.TryParse(userIdCalim, out Guid userId)) 
-            {
-                _logger.LogWarning("[AuthService] : Refresh token thất bại vì không đọc được userId từ access token.");
-                return null;
-            }
-            var storedRefreshToken = await _unitOfWork.RefreshTokens.GetAsync(rt => rt.Token == dto.RefreshToken && rt.UserId == userId, includeProperties: "User,User.Role", tracked: true);
-            if (storedRefreshToken == null)
-            {
-                _logger.LogWarning("[AuthService] : Refresh token thất bại vì token không tồn tại trong DB.");
-                return null;
-            }
-            if (storedRefreshToken.RevokedAtUtc != null) 
-            {
-                _logger.LogWarning("[AuthService] : Refresh token thất bại vì token đã bị revoke.");
-                return null;
-            }
-            if (storedRefreshToken.ExpiresAtUtc <= DateTime.UtcNow)
-            {
-                _logger.LogWarning("[AuthService] : Refresh token thất bại vì token đã hết hạn.");
-                return null;
-            }
-            // [AuthService] : Revoke token cũ ngay khi refresh thành công để tránh token cũ bị tái sử dụng nhiều lần.
-            storedRefreshToken.RevokedAtUtc = DateTime.UtcNow;
-            string newRefreshTokenValue = _tokenService.GenerateRefreshToken();
-            DateTime newRefreshTokenExpiredAtUtc = DateTime.UtcNow.AddDays(_jwtSettings.RefreshTokenExpireDays);
+            _logger.LogInformation("[AuthService] : Bắt đầu xử lý refresh token từ Cookie.");
+            // [AuthService] : Tìm token trong DB
+            var tokenEntity = await _unitOfWork.RefreshTokens.GetAsync(
+                            rt => rt.Token == refreshToken,
+                            includeProperties: "User,User.Role",
+                            tracked: true); // Tracked = true để EF Core tự tracking update
 
-            storedRefreshToken.ReplacedByToken = newRefreshTokenValue;
+            if (tokenEntity == null)
+            {
+                _logger.LogWarning("[AuthService] : Refresh token không tồn tại trong hệ thống.");
+                return null;
+            }
+            //----------------------------------------------------
+            //PHÁT HIỆN TẤN CÔNG (COMPROMISED TOKEN DETECTION)
+            //----------------------------------------------------
+            if (tokenEntity.RevokedAtUtc != null)
+            {
+                // Nếu token đã bị revoke mà vẫn được dùng lại -> Có kẻ đã ăn cắp token cũ!
+                _logger.LogWarning("[AuthService] : PHÁT HIỆN BẤT THƯỜNG! Token {Token} đã bị revoke nhưng vẫn được sử dụng. Có thể tài khoản {UserId} đang bị tấn công.", tokenEntity.Token, tokenEntity.UserId);
 
+                // HÀNH ĐỘNG: Thu hồi ngay lập tức token hiện tại đang active của user này (hoặc toàn bộ token)
+                // Để hacker đang cầm token mới cũng bị văng ra ngoài.
+                await RevokeAllTokensForUserAsync(tokenEntity.UserId);
+                return null;
+            }
+
+            // Kiểm tra hết hạn bình thường
+            if (tokenEntity.ExpiresAtUtc <= DateTime.UtcNow)
+            {
+                _logger.LogInformation("[AuthService] : Refresh token đã hết hạn tự nhiên.");
+                return null;
+            }
+
+            // ----------------------------------------------------------------------
+            // THỰC HIỆN ROTATION (XOAY VÒNG)
+            // ----------------------------------------------------------------------
+            // 1. Đánh dấu token cũ là đã sử dụng (Revoked)
+            tokenEntity.RevokedAtUtc = DateTime.UtcNow;
+
+            // 2. Tạo Token mới
+            string newRefreshToken = _tokenService.GenerateRefreshToken();
+            DateTime newRefreshTokenExpires = DateTime.UtcNow.AddDays(_jwtSettings.RefreshTokenExpireDays);
+
+            // 3. Móc nối lịch sử (ReplacedByToken)
+            tokenEntity.ReplacedByToken = newRefreshToken;
+
+            // 4. Lưu Token mới vào DB
             var newRefreshTokenEntity = new RefreshToken
             {
-                UserId = userId,
-                Token = newRefreshTokenValue,
+                UserId = tokenEntity.UserId,
+                Token = newRefreshToken,
                 CreatedAtUtc = DateTime.UtcNow,
-                ExpiresAtUtc = newRefreshTokenExpiredAtUtc
+                ExpiresAtUtc = newRefreshTokenExpires
             };
             await _unitOfWork.RefreshTokens.AddAsync(newRefreshTokenEntity);
-            // [AuthService] : Gọi TokenService để sinh access token mới sau khi refresh token được xác minh hợp lệ.
-            var accessTokenResult = _tokenService.GenerateAccessToken(storedRefreshToken.User);
+
+            // 5. Cấp lại Access Token mới
+            var accessTokenResult = _tokenService.GenerateAccessToken(tokenEntity.User);
 
             await _unitOfWork.SaveChangesAsync();
 
-            _logger.LogInformation("[AuthService] : Refresh token thành công cho user {UserId}.", userId);
+            _logger.LogInformation("[AuthService] : Refresh token thành công. Đã xoay vòng token cho user {UserId}.", tokenEntity.UserId);
             return new AuthResponseDto
             {
                 AccessToken = accessTokenResult.AccessToken,
                 ExpiredAtUtc = accessTokenResult.AccessTokenExpiredAtUtc,
-                RefreshToken = newRefreshTokenValue,
-                RefreshTokenExpiredAtUtc = newRefreshTokenExpiredAtUtc,
-                UserId = storedRefreshToken.User.Id,
-                FullName = storedRefreshToken.User.FullName,
-                Email = storedRefreshToken.User.Email,
-                RoleName = storedRefreshToken.User.Role.Name
+                RefreshToken = newRefreshToken,
+                RefreshTokenExpiredAtUtc = newRefreshTokenExpires,
+                UserId = tokenEntity.User.Id,
+                FullName = tokenEntity.User.FullName,
+                Email = tokenEntity.User.Email,
+                RoleName = tokenEntity.User.Role.Name
             };
         }
 
@@ -124,14 +135,14 @@ namespace LaptopStore.Services.Implements
             _logger.LogInformation("[AuthService] : Bắt đầu xử lý đăng ký cho email {Email}.", dto.Email);
             // [AuthService] : Kiểm tra email đã tồn tại chưa để tránh tạo trùng tài khoản.
             User? existingUser = await _unitOfWork.Users.GetAsync(u => u.Email.ToLower() == dto.Email.ToLower(), includeProperties: "Role", tracked: false);
-            if (existingUser != null) 
+            if (existingUser != null)
             {
                 _logger.LogWarning("[AuthService] : Đăng ký thất bại vì email {Email} đã tồn tại.", dto.Email);
                 return null;
             }
             // [AuthService] : Tìm role Customer để gán mặc định cho user mới đăng ký.
             Role? customerRole = await _unitOfWork.Roles.GetAsync(r => r.Name == "Customer", tracked: false);
-            if (customerRole == null) 
+            if (customerRole == null)
             {
                 _logger.LogError("[AuthService] : Không tìm thấy role Customer trong database.");
                 throw new Exception("Role Customer chưa được seed trong database.");
@@ -181,7 +192,7 @@ namespace LaptopStore.Services.Implements
             return true;
         }
 
-        private async Task<AuthResponseDto> BuildAuthResponseWithRefreshTokenAsync(User user) 
+        private async Task<AuthResponseDto> BuildAuthResponseWithRefreshTokenAsync(User user)
         {
             // [AuthService] : Gọi TokenService để sinh access token thay vì tự xử lý JWT trong AuthService.
             var accessTokenResult = _tokenService.GenerateAccessToken(user);
@@ -210,7 +221,17 @@ namespace LaptopStore.Services.Implements
                 RoleName = user.Role.Name
             };
         }
-
+        // Hàm phụ trợ để xử lý khi phát hiện hack
+        private async Task RevokeAllTokensForUserAsync(Guid userId)
+        {
+            var activeTokens = await _unitOfWork.RefreshTokens.GetAllAsync(rt => rt.UserId == userId && rt.RevokedAtUtc == null, tracked: true);
+            foreach (var token in activeTokens)
+            {
+                token.RevokedAtUtc = DateTime.UtcNow;
+            }
+            await _unitOfWork.SaveChangesAsync();
+            _logger.LogInformation("[AuthService] : Đã thu hồi toàn bộ Refresh Token active của user {UserId} vì lý do bảo mật.", userId);
+        }
 
     }
 }

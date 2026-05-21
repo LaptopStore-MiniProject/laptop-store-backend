@@ -15,7 +15,7 @@ namespace LaptopStore.Services.Interfaces
         Task<AuthResponseDto?> LoginAsync(LoginRequestDto dto);
 
         // [IAuthService] : Dùng refresh token để cấp lại access token mới khi access token cũ đã hết hạn.
-        Task<AuthResponseDto?> RefreshTokenAsync(RefreshTokenRequestDto dto);
+        Task<AuthResponseDto?> RefreshTokenAsync(string refreshToken);
 
         // [IAuthService] : Thu hồi refresh token khi logout hoặc khi cần chặn phiên đăng nhập.
         Task<bool> RevokeRefreshTokenAsync(string refreshToken);
